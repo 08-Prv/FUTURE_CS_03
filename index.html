@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Secure File Portal</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f7f7f7;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+    }
+
+    h1, h2 {
+      color: #333;
+    }
+
+    input[type="file"],
+    input[type="text"] {
+      padding: 10px;
+      margin: 10px 0;
+      width: 80%;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 8px 16px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+      background-color: #4285f4;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #357ae8;
+    }
+
+    .file-list {
+      margin-top: 30px;
+    }
+
+    .file-item {
+      background: #fff;
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    .file-item button {
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Secure File Portal</h1>
+
+  <!-- Upload -->
+  <h2>Upload File</h2>
+  <form id="uploadForm">
+    <input type="file" id="uploadFile" name="file" required />
+    <button type="submit">Upload</button>
+  </form>
+
+  <!-- Search -->
+  <h2>Search & Download File</h2>
+  <input type="text" id="searchBox" placeholder="Type part of filename..." />
+  <div id="searchResults" class="file-list"></div>
+
+  <script>
+    let allFiles = [];
+
+    // Load on start
+    window.onload = () => {
+      fetchFiles();
+    };
+
+    function fetchFiles() {
+      fetch('/files')
+        .then(res => res.json())
+        .then(data => {
+          allFiles = data.files;
+          displayFiles(data.files);
+        });
+    }
+
+    function displayFiles(fileList) {
+      const container = document.getElementById('searchResults');
+      container.innerHTML = '';
+
+      if (!fileList.length) {
+        container.innerHTML = '<p>No files found.</p>';
+        return;
+      }
+
+      fileList.forEach(file => {
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        div.innerHTML = `
+          <strong>${file}</strong>
+          <button onclick="downloadFile('${file}')">Download</button>
+          <button onclick="deleteFile('${file}')">Delete</button>
+          <button onclick="modifyFile('${file}')">Modify</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    document.getElementById('searchBox').addEventListener('input', function () {
+      const query = this.value.toLowerCase();
+      const filtered = allFiles.filter(f => f.toLowerCase().includes(query));
+      displayFiles(filtered);
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const fileInput = document.getElementById('uploadFile');
+      const file = fileInput.files[0];
+      if (!file) return alert("Select a file first.");
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      })
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message || data.error);
+          fileInput.value = '';
+          fetchFiles();
+        });
+    });
+
+    function downloadFile(filename) {
+      window.location.href = '/download/' + encodeURIComponent(filename);
+    }
+
+    function deleteFile(filename) {
+      if (!confirm(`Delete ${filename}?`)) return;
+
+      fetch('/delete/' + encodeURIComponent(filename), {
+        method: 'DELETE'
+      })
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message || data.error);
+          fetchFiles();
+        });
+    }
+
+    function modifyFile(filename) {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '*/*';
+
+      fileInput.onchange = function () {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        fetch('/modify/' + encodeURIComponent(filename), {
+          method: 'PUT',
+          body: formData
+        })
+          .then(res => res.json())
+          .then(data => {
+            alert(data.message || data.error);
+            fetchFiles();
+          });
+      };
+
+      fileInput.click();
+    }
+  </script>
+</body>
+</html>
